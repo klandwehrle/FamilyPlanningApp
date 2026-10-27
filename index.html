@@ -10,6 +10,7 @@
   --bg:#f6f2ea; --card:#fffdf9; --ink:#2a2723; --muted:#7b746a; --line:#e6dfd3;
   --accent:#d9653b; --accent-ink:#fff; --accent-soft:#fbe6dc;
   --m:#f2b84b; --a:#4fa3d9; --e:#7f6ad6; --good:#2f9e6b; --slot-empty:#efe9df;
+  --g-some:#f39a4c; --g-most:#f5d04a; --g-all:#2f9e6b;
   --danger:#c0392b; --shadow:0 1px 2px rgba(0,0,0,.05),0 6px 20px rgba(0,0,0,.06);
 }
 @media (prefers-color-scheme: dark){
@@ -106,9 +107,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 .slot.on.s-M{background:var(--m);color:#3b2a00}
 .slot.on.s-A{background:var(--a);color:#fff}
 .slot.on.s-E{background:var(--e);color:#fff}
-.slot.grp{background:color-mix(in srgb,var(--good) calc(var(--r) * 80%),var(--slot-empty));color:var(--ink)}
-.slot.grp.hi{color:#fff}
-.slot.grp.all{background:var(--good);color:#fff;box-shadow:inset 0 0 0 2px color-mix(in srgb,#fff 35%,transparent)}
+.slot.grp{background:var(--slot-empty);color:var(--muted)}
+.slot.grp.some{background:var(--g-some);color:#4a2300}
+.slot.grp.most{background:var(--g-most);color:#3b2e00}
+.slot.grp.all{background:var(--g-all);color:#fff}
 .sl-short{display:none}
 
 @media (max-width:640px){
@@ -120,7 +122,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
   .dnum .star{display:none}
   .slot{min-height:0;height:8px;flex:none;border-radius:3px;pointer-events:none;padding:0}
   .slot span{display:none}
-  .slot.grp.all{box-shadow:none}
 }
 
 /* sheet / modal */
@@ -157,7 +158,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
    SETTINGS — paste your Apps Script Web App URL below.
    Leave it empty to try the app in demo mode (sample data, nothing saved).
    ===================================================================== */
-const API_URL = 'https://script.google.com/macros/s/AKfycbxaKPRA45xJu0paC9UBaB3QWN_IEixXWWrl886UQVm2tvwcLT2sN6BbTOAc9btt7DVI/exec';
+const API_URL = '';
 const FAMILY_NAME = 'Family Calendar';
 
 /* ===================================================================== */
@@ -263,8 +264,20 @@ async function showLogin() {
       session.admin = r.user.admin;
       store.set('famcal_session', session); store.set('famcal_lastname', name);
       route();
-    } catch (e) { session = null; err.textContent = e.message; b.disabled = false; b.textContent = 'Sign in'; }
+    } catch (e) {
+      session = null; err.textContent = e.message; b.disabled = false; b.textContent = 'Sign in';
+      const p = document.getElementById('lp'); p.value = ''; p.focus();
+    }
   };
+
+  // Sign in automatically once 4 digits are typed (if a name is chosen)
+  const pinBox = document.getElementById('lp'), form = document.getElementById('lf');
+  const tryAuto = () => {
+    pinBox.value = pinBox.value.replace(/\D/g, '').slice(0, 4);
+    if (pinBox.value.length === 4 && sel.value && !document.getElementById('lb').disabled) form.requestSubmit();
+  };
+  pinBox.addEventListener('input', tryAuto);
+  sel.addEventListener('change', () => { if (pinBox.value.length === 4) tryAuto(); else pinBox.focus(); });
 }
 function logout() { session = null; store.del('famcal_session'); location.hash = ''; showLogin(); }
 
@@ -388,9 +401,9 @@ function renderPanel() {
   const tog = document.getElementById('tog');
   if (tog) tog.onclick = () => { state.filter = allOn ? new Set() : new Set(names); renderPanel(); renderCalendar(); };
   panel.querySelectorAll('.best li').forEach(li => li.onclick = () => openDaySheet(li.dataset.d));
-  legend.innerHTML = `<span><i style="background:color-mix(in srgb,var(--good) 30%,var(--slot-empty))"></i>Some free</span>
-    <span><i style="background:color-mix(in srgb,var(--good) 65%,var(--slot-empty))"></i>Most free</span>
-    <span><i style="background:var(--good)"></i>Everyone selected is free</span>`;
+  legend.innerHTML = `<span><i style="background:var(--g-all)"></i>Everyone free</span>
+    <span><i style="background:var(--g-most)"></i>Most free (half or more)</span>
+    <span><i style="background:var(--g-some)"></i>Some free</span>`;
 }
 
 /* availability counts for currently selected people */
@@ -438,8 +451,8 @@ function renderCalendar() {
         return `<button class="slot s-${s.k} ${on ? 'on' : ''}" data-slot="${s.k}" title="${s.label} ${s.time}"><span>${on ? '✓ ' : ''}${s.label}</span></button>`;
       }
       const who = availableFor(d, s.k), r = n ? who.length / n : 0;
-      const cls = who.length && who.length === n ? 'all' : r >= .6 ? 'hi' : '';
-      return `<button class="slot grp ${cls}" style="--r:${r}" data-slot="${s.k}" title="${s.label}: ${esc(who.join(', ') || 'nobody')}"><span>${s.label[0]} · ${who.length}/${n}</span></button>`;
+      const cls = !who.length ? '' : who.length === n ? 'all' : r >= .5 ? 'most' : 'some';
+      return `<button class="slot grp ${cls}" data-slot="${s.k}" title="${s.label}: ${esc(who.join(', ') || 'nobody')}"><span>${s.label[0]} · ${who.length}/${n}</span></button>`;
     }).join('');
     html += `<div class="day ${active ? '' : 'off'} ${d === ev.date ? 'anchor' : ''} ${d === t ? 'today' : ''}" data-date="${d}">
       <div class="dnum"><span>${label}</span>${d === ev.date ? '<span class="star">★ target</span>' : ''}</div>

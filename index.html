@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f6f2ea">
 <title>Family Calendar</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Family Cal">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
 :root{
   --bg:#f6f2ea; --card:#fffdf9; --ink:#2a2723; --muted:#7b746a; --line:#e6dfd3;
@@ -147,6 +154,17 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 .spin{display:inline-block;width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:rot .8s linear infinite}
 @keyframes rot{to{transform:rotate(360deg)}}
 .center{display:flex;justify-content:center;padding:60px 0}
+
+/* notifications */
+.bell{background:none;border:0;cursor:pointer;font-size:18px;padding:4px 6px;border-radius:8px;position:relative;line-height:1}
+.bell.off{filter:grayscale(1);opacity:.55}
+.bell.off::after{content:'';position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.notice{display:flex;gap:12px;align-items:center;padding:12px 14px;margin-bottom:14px;background:var(--accent-soft);border-color:transparent}
+.notice .txt{flex:1;font-size:14px}
+.notice .btn{padding:8px 12px;font-size:14px;white-space:nowrap}
+.steps{margin:12px 0 18px;padding-left:22px}
+.steps li{margin:6px 0}
+.ok{color:var(--good);font-weight:650}
 </style>
 </head>
 <body>
@@ -160,6 +178,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
    ===================================================================== */
 const API_URL = 'https://script.google.com/macros/s/AKfycbxaKPRA45xJu0paC9UBaB3QWN_IEixXWWrl886UQVm2tvwcLT2sN6BbTOAc9btt7DVI/exec';
 const FAMILY_NAME = 'Family Calendar';
+
+// Push notifications: paste your OneSignal App ID here (OneSignal → Settings → Keys & IDs).
+// The App ID is safe to make public. Never put the API *key* in this file.
+const ONESIGNAL_APP_ID = '';
 
 /* ===================================================================== */
 const WINDOW = 14;
@@ -226,7 +248,7 @@ const loading = () => { app.innerHTML = `<div class="wrap"><div class="center"><
 function topBar(extra = '') {
   return `${DEMO ? `<div class="demo"><b>Demo mode.</b> Sample data only — add your Apps Script URL to <code>API_URL</code> to go live.</div>` : ''}
   <div class="top">${extra || `<h1>${esc(FAMILY_NAME)}</h1>`}
-    <div class="who"><span class="muted">${esc(session.name)}</span><button class="link" onclick="logout()">Sign out</button></div>
+    <div class="who">${PUSH_ON ? `<button id="bell" class="bell ${pushStatus() === 'on' ? '' : 'off'}" title="Notifications" aria-label="Notifications" onclick="openPushSheet()">🔔</button>` : ''}<span class="muted">${esc(session.name)}</span><button class="link" onclick="logout()">Sign out</button></div>
   </div>`;
 }
 
@@ -263,6 +285,7 @@ async function showLogin() {
       const r = await api('login');
       session.admin = r.user.admin;
       store.set('famcal_session', session); store.set('famcal_lastname', name);
+      pushLogin(name);
       route();
     } catch (e) {
       session = null; err.textContent = e.message; b.disabled = false; b.textContent = 'Sign in';
@@ -279,7 +302,7 @@ async function showLogin() {
   pinBox.addEventListener('input', tryAuto);
   sel.addEventListener('change', () => { if (pinBox.value.length === 4) tryAuto(); else pinBox.focus(); });
 }
-function logout() { session = null; store.del('famcal_session'); location.hash = ''; showLogin(); }
+function logout() { pushLogout(); session = null; store.del('famcal_session'); location.hash = ''; showLogin(); }
 
 /* ---------- event list ---------- */
 async function showList() {
@@ -304,6 +327,7 @@ async function showList() {
   }).join('');
 
   app.innerHTML = `<div class="wrap">${topBar()}
+    <div id="pushPrompt">${pushPromptHtml()}</div>
     <div class="events">${items || `<div class="card empty"><div style="font-size:34px">📅</div><b>No upcoming events</b><div class="muted">Tap “New event” to plan something.</div></div>`}</div>
     </div>
     <div class="bottombar"><button class="btn primary big" onclick="openAddEvent()">＋ New event</button></div>`;
@@ -563,6 +587,119 @@ window.addEventListener('resize', () => {
 });
 
 /* =====================================================================
+   PUSH NOTIFICATIONS (OneSignal)
+   Each phone is tagged with the person's name ("external ID"), so the
+   Google Sheet can say "notify everyone except Dad".
+   ===================================================================== */
+const PUSH_ON = !!ONESIGNAL_APP_ID && !DEMO;
+const push = { os: null, ready: false, failed: false };
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+
+function initPush() {
+  if (!PUSH_ON) return;
+  // Works whether the site lives at the root or in a repo folder like /family-calendar/
+  const base = location.pathname.replace(/[^/]*$/, '');
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async OneSignal => {
+    try {
+      await OneSignal.init({
+        appId: ONESIGNAL_APP_ID,
+        serviceWorkerPath: base.slice(1) + 'OneSignalSDKWorker.js',
+        serviceWorkerParam: { scope: base }
+      });
+      push.os = OneSignal; push.ready = true;
+      if (session) await OneSignal.login(session.name);
+      OneSignal.User.PushSubscription.addEventListener('change', refreshPushUi);
+      OneSignal.Notifications.addEventListener('permissionChange', refreshPushUi);
+    } catch (e) { push.failed = true; console.warn('Notifications unavailable:', e); }
+    refreshPushUi();
+  });
+  const s = document.createElement('script');
+  s.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+  s.defer = true;
+  s.onerror = () => { push.failed = true; refreshPushUi(); };
+  document.head.appendChild(s);
+}
+
+function pushStatus() {
+  if (!PUSH_ON) return 'off';
+  if (isIOS() && !isStandalone()) return 'install';
+  if (push.failed) return 'unsupported';
+  if (!push.ready) return 'loading';
+  if (!push.os.Notifications.isPushSupported()) return 'unsupported';
+  if (typeof Notification !== 'undefined' && Notification.permission === 'denied') return 'blocked';
+  return push.os.User.PushSubscription.optedIn ? 'on' : 'available';
+}
+
+function pushLogin(name) { try { if (push.os) push.os.login(name); } catch (e) {} }
+function pushLogout() { try { if (push.os) push.os.logout(); } catch (e) {} }
+
+function refreshPushUi() {
+  const bell = document.getElementById('bell');
+  if (bell) bell.classList.toggle('off', pushStatus() !== 'on');
+  const p = document.getElementById('pushPrompt');
+  if (p) p.innerHTML = pushPromptHtml();
+}
+
+function pushPromptHtml() {
+  const st = pushStatus();
+  if (!['available', 'install'].includes(st) || store.get('famcal_push_dismissed')) return '';
+  return `<div class="card notice"><div class="txt">🔔 Get a notification when someone adds an event or updates their availability.</div>
+    <button class="btn primary" onclick="openPushSheet()">Turn on</button>
+    <button class="link small" onclick="store.set('famcal_push_dismissed',true);refreshPushUi()">Not now</button></div>`;
+}
+
+function openPushSheet() {
+  const st = pushStatus();
+  const close = `<div class="actions"><button class="btn primary" onclick="closeModal()">OK</button></div>`;
+  const body = {
+    install: `<h3>Add to your home screen first</h3>
+      <div class="muted small">On iPhone, notifications only work from the home-screen app.</div>
+      <ol class="steps">
+        <li>In Safari, tap the <b>Share</b> button <span aria-hidden="true">⬆︎</span></li>
+        <li>Choose <b>Add to Home Screen</b>, then <b>Add</b></li>
+        <li>Open <b>Family Cal</b> from your home screen and sign in</li>
+        <li>Tap the 🔔 at the top and turn notifications on</li>
+      </ol>${close}`,
+    loading: `<h3>One moment…</h3><div class="muted">Notifications are still loading. Try again in a few seconds.</div><div style="height:16px"></div>${close}`,
+    unsupported: `<h3>Not available here</h3><div class="muted">This browser can’t receive notifications. On iPhone you need iOS 16.4 or newer and the home-screen app. On Android, use Chrome.</div><div style="height:16px"></div>${close}`,
+    blocked: `<h3>Notifications are blocked</h3>
+      <ol class="steps">
+        <li><b>iPhone:</b> Settings → Notifications → Family Cal → Allow Notifications</li>
+        <li><b>Android / computer:</b> tap the icon left of the web address → Permissions → Notifications → Allow</li>
+      </ol>
+      <div class="muted small" style="margin-bottom:16px">Then come back and tap 🔔 again.</div>${close}`,
+    available: `<h3>Turn on notifications?</h3>
+      <div class="muted">You’ll get a notification when:</div>
+      <ol class="steps"><li>Someone adds a new event</li><li>Someone updates their availability</li></ol>
+      <div class="actions"><button class="btn" onclick="closeModal()">Not now</button><button class="btn primary" id="pushOn">Turn on</button></div>`,
+    on: `<h3><span class="ok">✓</span> Notifications are on</h3>
+      <div class="muted">You’ll hear about new events and availability updates on this device.</div><div style="height:16px"></div>
+      <div class="actions"><button class="btn" id="pushOff">Turn off</button><button class="btn primary" onclick="closeModal()">Done</button></div>`
+  }[st];
+  if (!body) return;
+  openModal(body);
+  const on = document.getElementById('pushOn'), off = document.getElementById('pushOff');
+  if (on) on.onclick = enablePush;
+  if (off) off.onclick = async () => { try { await push.os.User.PushSubscription.optOut(); } catch (e) {} refreshPushUi(); openPushSheet(); };
+}
+
+async function enablePush() {
+  const os = push.os;
+  try {
+    // Must be the first thing that happens after the tap, or phones ignore it
+    if (!os.Notifications.permission) await os.Notifications.requestPermission();
+    if (os.Notifications.permission) {
+      await os.User.PushSubscription.optIn();
+      if (session) await os.login(session.name);
+    }
+  } catch (e) { console.warn(e); }
+  refreshPushUi();
+  openPushSheet();
+}
+
+/* =====================================================================
    DEMO BACKEND — used only while API_URL is empty. Mirrors Code.gs.
    ===================================================================== */
 const mockApi = (() => {
@@ -616,6 +753,7 @@ const mockApi = (() => {
   };
 })();
 
+initPush();
 route();
 </script>
 </body>

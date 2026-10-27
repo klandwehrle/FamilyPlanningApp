@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f6f2ea">
+<title>Family Calendar</title>
+<style>
+:root{
+  --bg:#f6f2ea; --card:#fffdf9; --ink:#2a2723; --muted:#7b746a; --line:#e6dfd3;
+  --accent:#d9653b; --accent-ink:#fff; --accent-soft:#fbe6dc;
+  --m:#f2b84b; --a:#4fa3d9; --e:#7f6ad6; --good:#2f9e6b; --slot-empty:#efe9df;
+  --danger:#c0392b; --shadow:0 1px 2px rgba(0,0,0,.05),0 6px 20px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#1b1a18; --card:#252320; --ink:#f1ece4; --muted:#a39b8f; --line:#3a3631;
+    --accent:#ec7c4f; --accent-soft:#3e2a20; --slot-empty:#2f2c28; --shadow:0 1px 2px rgba(0,0,0,.3);
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+.wrap{max-width:940px;margin:0 auto;padding:16px 16px 120px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+h1{font-size:26px;margin:0;letter-spacing:-.01em}
+h2{font-size:22px;margin:0 0 4px;letter-spacing:-.01em}
+
+/* top bar */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 20px}
+.who{display:flex;align-items:center;gap:8px;font-size:14px}
+.link{background:none;border:0;color:var(--accent);cursor:pointer;padding:6px 4px;font-weight:600}
+.demo{background:var(--accent-soft);border-radius:10px;padding:10px 14px;font-size:14px;margin-bottom:16px}
+
+/* cards */
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+.events{display:flex;flex-direction:column;gap:12px}
+.ev{display:flex;gap:14px;padding:14px 16px;cursor:pointer;text-align:left;width:100%;transition:transform .08s}
+.ev:active{transform:scale(.99)}
+.datebox{flex:0 0 58px;height:62px;border-radius:12px;background:var(--accent-soft);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.datebox .mo{font-size:12px;font-weight:700;text-transform:uppercase;color:var(--accent);letter-spacing:.05em}
+.datebox .dy{font-size:24px;font-weight:700;line-height:1}
+.ev .body{flex:1;min-width:0}
+.ev .title{font-weight:650;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev .meta{font-size:14px;color:var(--muted);margin-top:2px}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;margin-top:6px;margin-right:6px}
+.pill.done{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+.pill.todo{background:var(--accent-soft);color:var(--accent)}
+.pill.soon{background:var(--slot-empty);color:var(--muted)}
+.empty{padding:40px 20px;text-align:center}
+
+/* bottom bar */
+.bottombar{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 35%);display:flex;justify-content:center;pointer-events:none}
+.bottombar > *{pointer-events:auto}
+.btn{border:0;border-radius:12px;padding:12px 18px;font-weight:650;cursor:pointer;background:var(--slot-empty)}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.big{width:100%;max-width:520px;padding:16px;font-size:17px;box-shadow:0 6px 20px rgba(217,101,59,.35)}
+.btn.danger{background:transparent;color:var(--danger);padding:8px 10px}
+.btn:disabled{opacity:.5;cursor:default}
+
+/* login */
+.login{max-width:380px;margin:8vh auto 0;padding:28px 24px}
+.login h1{margin-bottom:6px}
+label{display:block;font-size:14px;font-weight:600;margin:16px 0 6px}
+input,select,textarea{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+.pin{letter-spacing:.5em;font-size:22px;text-align:center}
+.err{color:var(--danger);font-size:14px;margin-top:12px;min-height:20px}
+
+/* event view */
+.evhead{padding:18px 18px 14px;margin-bottom:14px}
+.evhead .row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.notes{margin-top:8px;white-space:pre-wrap}
+.seg{display:flex;background:var(--slot-empty);border-radius:12px;padding:4px;margin:4px 0 14px}
+.seg button{flex:1;border:0;background:none;padding:10px;border-radius:9px;font-weight:600;cursor:pointer;color:var(--muted)}
+.seg button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+.panel{padding:14px 16px;margin-bottom:14px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.chip{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:6px 12px;font-size:14px;cursor:pointer;font-weight:550}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip.ghost{border-style:dashed;color:var(--muted)}
+.best{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.best li{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:8px 10px;border-radius:10px;background:var(--bg);cursor:pointer}
+.best li b{font-weight:650}
+.tag{font-size:12px;font-weight:700;color:var(--good)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--muted);margin:2px 0 10px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:4px;vertical-align:-1px;margin-right:5px}
+.status{font-size:13px;color:var(--muted);min-height:18px;text-align:right;margin-bottom:6px}
+.status.bad{color:var(--danger)}
+
+/* calendar */
+.calwrap{padding:12px}
+.dow,.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.dow div{font-size:12px;font-weight:700;color:var(--muted);text-align:center;padding:2px 0 6px;text-transform:uppercase;letter-spacing:.04em}
+.day{border-radius:10px;padding:6px;min-height:118px;background:var(--bg);border:2px solid transparent;display:flex;flex-direction:column;gap:5px}
+.day.off{opacity:.35;background:transparent;min-height:0}
+.day.anchor{border-color:var(--accent)}
+.dnum{font-size:13px;font-weight:650;display:flex;justify-content:space-between;align-items:center}
+.dnum .star{color:var(--accent);font-size:11px;font-weight:700}
+.day.today .dnum span:first-child{background:var(--ink);color:var(--bg);border-radius:6px;padding:0 5px}
+.slots{display:flex;flex-direction:column;gap:3px;flex:1}
+.slot{flex:1;min-height:26px;border:0;border-radius:6px;background:var(--slot-empty);font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);padding:0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.slot:hover{filter:brightness(.96)}
+.slot.on.s-M{background:var(--m);color:#3b2a00}
+.slot.on.s-A{background:var(--a);color:#fff}
+.slot.on.s-E{background:var(--e);color:#fff}
+.slot.grp{background:color-mix(in srgb,var(--good) calc(var(--r) * 80%),var(--slot-empty));color:var(--ink)}
+.slot.grp.hi{color:#fff}
+.slot.grp.all{background:var(--good);color:#fff;box-shadow:inset 0 0 0 2px color-mix(in srgb,#fff 35%,transparent)}
+.sl-short{display:none}
+
+@media (max-width:640px){
+  .wrap{padding:12px 10px 120px}
+  .calwrap{padding:8px 6px}
+  .dow,.cal{gap:3px}
+  .day{min-height:62px;padding:4px;border-radius:8px;cursor:pointer;gap:3px}
+  .dnum{font-size:12px}
+  .dnum .star{display:none}
+  .slot{min-height:0;height:8px;flex:none;border-radius:3px;pointer-events:none;padding:0}
+  .slot span{display:none}
+  .slot.grp.all{box-shadow:none}
+}
+
+/* sheet / modal */
+.backdrop{position:fixed;inset:0;background:rgba(20,16,12,.45);display:flex;align-items:flex-end;justify-content:center;z-index:50;animation:fade .15s}
+.sheet{background:var(--card);width:100%;max-width:520px;border-radius:20px 20px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));max-height:88vh;overflow:auto;animation:up .2s ease-out}
+@media (min-width:641px){.backdrop{align-items:center}.sheet{border-radius:20px}}
+@keyframes up{from{transform:translateY(30px);opacity:.6}}
+@keyframes fade{from{opacity:0}}
+.sheet h3{margin:0 0 2px;font-size:20px}
+.choices{display:flex;flex-direction:column;gap:10px;margin:16px 0}
+.choice{display:flex;justify-content:space-between;align-items:center;border:2px solid var(--line);background:var(--bg);border-radius:14px;padding:16px;cursor:pointer;font-weight:650;font-size:17px;text-align:left}
+.choice small{display:block;font-weight:500;color:var(--muted);font-size:13px}
+.choice .tick{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff}
+.choice.on.s-M{border-color:var(--m)} .choice.on.s-M .tick{background:var(--m);border-color:var(--m)}
+.choice.on.s-A{border-color:var(--a)} .choice.on.s-A .tick{background:var(--a);border-color:var(--a)}
+.choice.on.s-E{border-color:var(--e)} .choice.on.s-E .tick{background:var(--e);border-color:var(--e)}
+.sheet .actions{display:flex;gap:10px}
+.sheet .actions .btn{flex:1;padding:14px}
+.who-slot{border-top:1px solid var(--line);padding:12px 0}
+.who-slot:first-of-type{border-top:0}
+.who-slot .names{margin-top:4px;font-size:15px}
+.who-slot .no{color:var(--muted);font-size:13px;margin-top:2px}
+.spin{display:inline-block;width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+.center{display:flex;justify-content:center;padding:60px 0}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal"></div>
+
+<script>
+/* =====================================================================
+   SETTINGS — paste your Apps Script Web App URL below.
+   Leave it empty to try the app in demo mode (sample data, nothing saved).
+   ===================================================================== */
+const API_URL = '';
+const FAMILY_NAME = 'Family Calendar';
+
+/* ===================================================================== */
+const WINDOW = 14;
+const SLOTS = [
+  { k: 'M', label: 'Morning',   time: '8am – 12pm' },
+  { k: 'A', label: 'Afternoon', time: '12 – 5pm' },
+  { k: 'E', label: 'Evening',   time: '5 – 10pm' }
+];
+const DEMO = !API_URL;
+
+/* ---------- date helpers (all dates are yyyy-mm-dd strings) ---------- */
+const pad = n => String(n).padStart(2, '0');
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+const today = () => iso(new Date());
+const fmt = (s, o) => parse(s).toLocaleDateString(undefined, o);
+const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 86400000);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const isMobile = () => window.matchMedia('(max-width: 640px)').matches;
+const slotInfo = k => SLOTS.find(s => s.k === k);
+
+/* ---------- storage (safe) ---------- */
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+};
+
+/* ---------- state ---------- */
+let session = store.get('famcal_session');
+const state = { events: [], event: null, responses: [], mine: new Set(), mode: 'mine', filter: new Set() };
+
+/* ---------- API ---------- */
+async function api(action, data = {}) {
+  const req = Object.assign({ action, name: session?.name, pin: session?.pin }, data);
+  let res;
+  if (DEMO) {
+    res = await mockApi(JSON.parse(JSON.stringify(req)));
+  } else {
+    const r = await fetch(API_URL, { method: 'POST', body: JSON.stringify(req), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+    res = await r.json();
+  }
+  if (!res.ok) {
+    if (res.auth === false && action !== 'login') { logout(); }
+    throw new Error(res.error || 'Something went wrong');
+  }
+  return res;
+}
+
+/* ---------- routing ---------- */
+window.addEventListener('hashchange', route);
+async function route() {
+  closeModal();
+  await flushSave();
+  if (!session) return showLogin();
+  const m = location.hash.match(/^#\/e\/(.+)$/);
+  if (m) return showEvent(decodeURIComponent(m[1]));
+  return showList();
+}
+const app = document.getElementById('app');
+const loading = () => { app.innerHTML = `<div class="wrap"><div class="center"><span class="spin"></span></div></div>`; };
+
+function topBar(extra = '') {
+  return `${DEMO ? `<div class="demo"><b>Demo mode.</b> Sample data only — add your Apps Script URL to <code>API_URL</code> to go live.</div>` : ''}
+  <div class="top">${extra || `<h1>${esc(FAMILY_NAME)}</h1>`}
+    <div class="who"><span class="muted">${esc(session.name)}</span><button class="link" onclick="logout()">Sign out</button></div>
+  </div>`;
+}
+
+/* ---------- login ---------- */
+async function showLogin() {
+  app.innerHTML = `<div class="wrap"><div class="card login">
+    <h1>${esc(FAMILY_NAME)}</h1>
+    <div class="muted">Pick your name and enter the last 4 digits of your phone number.</div>
+    ${DEMO ? `<div class="demo" style="margin-top:14px">Demo: try <b>Mom</b> / <b>1234</b></div>` : ''}
+    <form id="lf">
+      <label for="ln">Name</label>
+      <select id="ln" required><option value="">Loading…</option></select>
+      <label for="lp">Last 4 of phone</label>
+      <input id="lp" class="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" required>
+      <div class="err" id="le"></div>
+      <button class="btn primary" style="width:100%;padding:14px;margin-top:6px" id="lb">Sign in</button>
+    </form></div></div>`;
+  const sel = document.getElementById('ln'), err = document.getElementById('le');
+  try {
+    const { members } = await api('members');
+    const last = store.get('famcal_lastname');
+    sel.innerHTML = `<option value="">Choose your name…</option>` +
+      members.map(n => `<option ${n === last ? 'selected' : ''}>${esc(n)}</option>`).join('');
+  } catch (e) { sel.innerHTML = `<option value="">Couldn't load names</option>`; err.textContent = e.message; }
+
+  document.getElementById('lf').onsubmit = async ev => {
+    ev.preventDefault();
+    const name = sel.value, pin = document.getElementById('lp').value.trim();
+    if (!name) return err.textContent = 'Please choose your name.';
+    if (!/^\d{4}$/.test(pin)) return err.textContent = 'Enter 4 digits.';
+    const b = document.getElementById('lb'); b.disabled = true; b.textContent = 'Signing in…'; err.textContent = '';
+    try {
+      session = { name, pin };
+      const r = await api('login');
+      session.admin = r.user.admin;
+      store.set('famcal_session', session); store.set('famcal_lastname', name);
+      route();
+    } catch (e) { session = null; err.textContent = e.message; b.disabled = false; b.textContent = 'Sign in'; }
+  };
+}
+function logout() { session = null; store.del('famcal_session'); location.hash = ''; showLogin(); }
+
+/* ---------- event list ---------- */
+async function showList() {
+  loading();
+  try { state.events = (await api('events')).events; }
+  catch (e) { app.innerHTML = `<div class="wrap">${topBar()}<div class="card empty">${esc(e.message)}</div></div>`; return; }
+
+  const t = today();
+  const items = state.events.map(ev => {
+    const d = daysBetween(t, ev.date);
+    const when = d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : d > 1 ? `In ${d} days` : `${-d} day${d === -1 ? '' : 's'} ago`;
+    const answered = ev.responders.includes(session.name);
+    const n = ev.responders.length;
+    return `<button class="card ev" onclick="location.hash='#/e/${encodeURIComponent(ev.id)}'">
+      <div class="datebox"><span class="mo">${fmt(ev.date, { month: 'short' })}</span><span class="dy">${parse(ev.date).getDate()}</span></div>
+      <div class="body">
+        <div class="title">${esc(ev.title)}</div>
+        <div class="meta">${fmt(ev.date, { weekday: 'long' })} · ${when}</div>
+        <span class="pill ${answered ? 'done' : 'todo'}">${answered ? '✓ You responded' : 'Add your availability'}</span>
+        <span class="pill soon">${n} ${n === 1 ? 'response' : 'responses'}</span>
+      </div></button>`;
+  }).join('');
+
+  app.innerHTML = `<div class="wrap">${topBar()}
+    <div class="events">${items || `<div class="card empty"><div style="font-size:34px">📅</div><b>No upcoming events</b><div class="muted">Tap “New event” to plan something.</div></div>`}</div>
+    </div>
+    <div class="bottombar"><button class="btn primary big" onclick="openAddEvent()">＋ New event</button></div>`;
+}
+
+function openAddEvent() {
+  openModal(`<h3>New event</h3><div class="muted small">Family members can mark availability two weeks either side of this date.</div>
+    <form id="af">
+      <label for="at">What is it?</label><input id="at" maxlength="100" placeholder="e.g. Grandma's birthday dinner" required>
+      <label for="ad">Target date</label><input id="ad" type="date" min="${addDays(today(), -WINDOW)}" value="${addDays(today(), 21)}" required>
+      <label for="an">Notes (optional)</label><textarea id="an" rows="3" maxlength="500" placeholder="Where, who's hosting, anything else"></textarea>
+      <div class="err" id="ae"></div>
+      <div class="actions"><button type="button" class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="ab">Create event</button></div>
+    </form>`);
+  document.getElementById('at').focus();
+  document.getElementById('af').onsubmit = async e => {
+    e.preventDefault();
+    const b = document.getElementById('ab'); b.disabled = true; b.textContent = 'Creating…';
+    try {
+      const { event } = await api('addEvent', { title: at.value, date: ad.value, notes: an.value });
+      closeModal(); location.hash = `#/e/${encodeURIComponent(event.id)}`;
+    } catch (err) { document.getElementById('ae').textContent = err.message; b.disabled = false; b.textContent = 'Create event'; }
+  };
+}
+
+/* ---------- event view ---------- */
+async function showEvent(id) {
+  loading();
+  let data;
+  try { data = await api('event', { id }); }
+  catch (e) { app.innerHTML = `<div class="wrap">${topBar(backBtn())}<div class="card empty">${esc(e.message)}</div></div>`; return; }
+  state.event = data.event;
+  state.responses = data.responses;
+  const me = data.responses.find(r => r.name === session.name);
+  state.mine = new Set(me ? me.slots : []);
+  state.filter = new Set(data.responses.map(r => r.name));
+  state.mode = me ? 'group' : 'mine';
+  renderEvent();
+}
+const backBtn = () => `<button class="link" style="font-size:16px;padding-left:0" onclick="location.hash=''">‹ All events</button>`;
+
+function renderEvent() {
+  const ev = state.event;
+  const canDelete = session.admin || ev.createdBy === session.name;
+  const range = `${fmt(addDays(ev.date, -WINDOW), { month: 'short', day: 'numeric' })} – ${fmt(addDays(ev.date, WINDOW), { month: 'short', day: 'numeric' })}`;
+  app.innerHTML = `<div class="wrap">${topBar(backBtn())}
+    <div class="card evhead">
+      <div class="row"><div>
+        <h2>${esc(ev.title)}</h2>
+        <div class="muted">★ ${fmt(ev.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
+      </div>${canDelete ? `<button class="btn danger small" onclick="confirmDelete()">Delete</button>` : ''}</div>
+      ${ev.notes ? `<div class="notes">${esc(ev.notes)}</div>` : ''}
+      <div class="muted small" style="margin-top:8px">Added by ${esc(ev.createdBy || 'someone')} · Choosing dates ${range}</div>
+    </div>
+    <div class="seg">
+      <button class="${state.mode === 'mine' ? 'on' : ''}" onclick="setMode('mine')">My availability</button>
+      <button class="${state.mode === 'group' ? 'on' : ''}" onclick="setMode('group')">Everyone (${state.responses.length})</button>
+    </div>
+    <div id="panel"></div>
+    <div class="status" id="status"></div>
+    <div class="legend" id="legend"></div>
+    <div class="card calwrap">
+      <div class="dow">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => `<div>${d}</div>`).join('')}</div>
+      <div class="cal" id="cal"></div>
+    </div></div>`;
+  document.getElementById('cal').addEventListener('click', onCalClick);
+  renderPanel(); renderCalendar();
+}
+
+function setMode(m) { state.mode = m; renderEvent(); }
+
+function renderPanel() {
+  const panel = document.getElementById('panel'), legend = document.getElementById('legend');
+  if (state.mode === 'mine') {
+    panel.innerHTML = `<div class="card panel small">${isMobile()
+      ? 'Tap a day, then choose morning, afternoon or evening. Changes save automatically.'
+      : 'Click morning, afternoon or evening on any day you’re free. Click again to undo. Changes save automatically.'}</div>`;
+    legend.innerHTML = SLOTS.map(s => `<span><i style="background:var(--${s.k.toLowerCase()})"></i>${s.label} ${s.time}</span>`).join('');
+    return;
+  }
+  const names = state.responses.map(r => r.name);
+  const notYet = state.responses.length ? '' : '<div class="muted small" style="margin-top:6px">Nobody has responded yet.</div>';
+  const chips = names.map(n => `<button class="chip ${state.filter.has(n) ? 'on' : ''}" data-n="${esc(n)}">${esc(n)}</button>`).join('');
+  const allOn = names.length && names.every(n => state.filter.has(n));
+  panel.innerHTML = `<div class="card panel">
+      <div style="display:flex;justify-content:space-between;align-items:center"><b>Who to include</b>
+      ${names.length ? `<button class="link small" id="tog">${allOn ? 'Clear' : 'Select all'}</button>` : ''}</div>
+      <div class="chips" id="chips">${chips}</div>${notYet}
+    </div>
+    ${bestTimesHtml()}`;
+  panel.querySelectorAll('.chip[data-n]').forEach(c => c.onclick = () => {
+    const n = c.dataset.n; state.filter.has(n) ? state.filter.delete(n) : state.filter.add(n);
+    renderPanel(); renderCalendar();
+  });
+  const tog = document.getElementById('tog');
+  if (tog) tog.onclick = () => { state.filter = allOn ? new Set() : new Set(names); renderPanel(); renderCalendar(); };
+  panel.querySelectorAll('.best li').forEach(li => li.onclick = () => openDaySheet(li.dataset.d));
+  legend.innerHTML = `<span><i style="background:color-mix(in srgb,var(--good) 30%,var(--slot-empty))"></i>Some free</span>
+    <span><i style="background:color-mix(in srgb,var(--good) 65%,var(--slot-empty))"></i>Most free</span>
+    <span><i style="background:var(--good)"></i>Everyone selected is free</span>`;
+}
+
+/* availability counts for currently selected people */
+function availableFor(date, k) {
+  const key = `${date}|${k}`;
+  return state.responses.filter(r => state.filter.has(r.name) && r.slots.includes(key)).map(r => r.name);
+}
+function activeDays() {
+  const ev = state.event, t = today(), out = [];
+  for (let d = addDays(ev.date, -WINDOW); d <= addDays(ev.date, WINDOW); d = addDays(d, 1)) if (d >= t) out.push(d);
+  return out;
+}
+
+function bestTimesHtml() {
+  const n = state.filter.size;
+  if (!n) return '';
+  const rows = [];
+  activeDays().forEach(d => SLOTS.forEach(s => {
+    const c = availableFor(d, s.k).length;
+    if (c) rows.push({ d, s, c, dist: Math.abs(daysBetween(state.event.date, d)) });
+  }));
+  rows.sort((a, b) => b.c - a.c || a.dist - b.dist || (a.d < b.d ? -1 : 1));
+  const top = rows.slice(0, 5);
+  if (!top.length) return `<div class="card panel small muted">No overlapping times yet for the people selected.</div>`;
+  return `<div class="card panel"><b>Best times</b><ul class="best">${top.map(r => `<li data-d="${r.d}">
+      <span><b>${fmt(r.d, { weekday: 'short', month: 'short', day: 'numeric' })}</b> · ${r.s.label}</span>
+      <span>${r.c === n ? `<span class="tag">Everyone ✓</span>` : `${r.c} of ${n}`}</span></li>`).join('')}</ul></div>`;
+}
+
+function renderCalendar() {
+  const ev = state.event, t = today();
+  const start = addDays(ev.date, -WINDOW), end = addDays(ev.date, WINDOW);
+  const gs = parse(start); gs.setDate(gs.getDate() - gs.getDay());
+  const ge = parse(end); ge.setDate(ge.getDate() + (6 - ge.getDay()));
+  const first = iso(gs), last = iso(ge), n = state.filter.size;
+  let html = '';
+  for (let d = first; d <= last; d = addDays(d, 1)) {
+    const active = d >= start && d <= end && d >= t;
+    const dt = parse(d);
+    const label = (dt.getDate() === 1 || d === first) ? fmt(d, { month: 'short', day: 'numeric' }) : dt.getDate();
+    let slots = '';
+    if (active) slots = SLOTS.map(s => {
+      if (state.mode === 'mine') {
+        const on = state.mine.has(`${d}|${s.k}`);
+        return `<button class="slot s-${s.k} ${on ? 'on' : ''}" data-slot="${s.k}" title="${s.label} ${s.time}"><span>${on ? '✓ ' : ''}${s.label}</span></button>`;
+      }
+      const who = availableFor(d, s.k), r = n ? who.length / n : 0;
+      const cls = who.length && who.length === n ? 'all' : r >= .6 ? 'hi' : '';
+      return `<button class="slot grp ${cls}" style="--r:${r}" data-slot="${s.k}" title="${s.label}: ${esc(who.join(', ') || 'nobody')}"><span>${s.label[0]} · ${who.length}/${n}</span></button>`;
+    }).join('');
+    html += `<div class="day ${active ? '' : 'off'} ${d === ev.date ? 'anchor' : ''} ${d === t ? 'today' : ''}" data-date="${d}">
+      <div class="dnum"><span>${label}</span>${d === ev.date ? '<span class="star">★ target</span>' : ''}</div>
+      <div class="slots">${slots}</div></div>`;
+  }
+  document.getElementById('cal').innerHTML = html;
+}
+
+function onCalClick(e) {
+  const day = e.target.closest('.day');
+  if (!day || day.classList.contains('off')) return;
+  const date = day.dataset.date;
+  if (isMobile()) return openDaySheet(date);
+  const slot = e.target.closest('.slot');
+  if (!slot) return;
+  if (state.mode === 'mine') toggleSlot(date, slot.dataset.slot);
+  else openDaySheet(date);
+}
+
+function toggleSlot(date, k, force) {
+  const key = `${date}|${k}`;
+  const on = force ?? !state.mine.has(key);
+  on ? state.mine.add(key) : state.mine.delete(key);
+  renderCalendar(); scheduleSave();
+}
+
+/* ---------- day sheet (phones, or group details on desktop) ---------- */
+function openDaySheet(date) {
+  const title = fmt(date, { weekday: 'long', month: 'long', day: 'numeric' });
+  const star = date === state.event.date ? ' <span style="color:var(--accent)">★</span>' : '';
+  if (state.mode === 'mine') {
+    const draw = () => {
+      const all = SLOTS.every(s => state.mine.has(`${date}|${s.k}`));
+      document.getElementById('modal').querySelector('.sheet').innerHTML = `
+        <h3>${title}${star}</h3><div class="muted small">When are you free?</div>
+        <div class="choices">${SLOTS.map(s => { const on = state.mine.has(`${date}|${s.k}`);
+          return `<button class="choice s-${s.k} ${on ? 'on' : ''}" data-k="${s.k}"><span>${s.label}<small>${s.time}</small></span><span class="tick">${on ? '✓' : ''}</span></button>`; }).join('')}
+        </div>
+        <div class="actions"><button class="btn" id="dall">${all ? 'Clear day' : 'All day'}</button><button class="btn primary" onclick="closeModal()">Done</button></div>`;
+      const sh = document.getElementById('modal');
+      sh.querySelectorAll('.choice').forEach(b => b.onclick = () => { toggleSlot(date, b.dataset.k); draw(); });
+      document.getElementById('dall').onclick = () => { SLOTS.forEach(s => toggleSlot(date, s.k, !all)); draw(); };
+    };
+    openModal(''); draw();
+  } else {
+    const sel = state.responses.filter(r => state.filter.has(r.name)).map(r => r.name);
+    openModal(`<h3>${title}${star}</h3><div class="muted small">${sel.length} ${sel.length === 1 ? 'person' : 'people'} selected</div>
+      <div style="margin:12px 0">${SLOTS.map(s => {
+        const yes = availableFor(date, s.k), no = sel.filter(n => !yes.includes(n));
+        return `<div class="who-slot"><b>${s.label}</b> <span class="muted small">${s.time}</span>
+          <div class="names">${yes.length ? (yes.length === sel.length ? '✅ Everyone: ' : '✓ ') + esc(yes.join(', ')) : '<span class="muted">Nobody free</span>'}</div>
+          ${no.length && yes.length ? `<div class="no">Not free: ${esc(no.join(', '))}</div>` : ''}</div>`;
+      }).join('')}</div>
+      <div class="actions"><button class="btn primary" onclick="closeModal()">Close</button></div>`);
+  }
+}
+
+function openModal(inner) {
+  const m = document.getElementById('modal');
+  m.innerHTML = `<div class="backdrop"><div class="sheet" role="dialog" aria-modal="true">${inner}</div></div>`;
+  m.querySelector('.backdrop').addEventListener('click', e => { if (e.target.classList.contains('backdrop')) closeModal(); });
+}
+function closeModal() { document.getElementById('modal').innerHTML = ''; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+/* ---------- saving ---------- */
+let saveTimer = null, saveChain = Promise.resolve(), dirty = false;
+function setStatus(t, bad) { const el = document.getElementById('status'); if (el) { el.textContent = t; el.className = 'status' + (bad ? ' bad' : ''); } }
+function scheduleSave() { dirty = true; setStatus('Saving…'); clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 700); }
+function flushSave() {
+  clearTimeout(saveTimer);
+  if (!dirty || !state.event) return saveChain;
+  dirty = false;
+  const id = state.event.id, slots = [...state.mine];
+  saveChain = saveChain.then(async () => {
+    try {
+      await api('saveAvail', { id, slots });
+      if (state.event && state.event.id === id) {
+        const i = state.responses.findIndex(r => r.name === session.name);
+        if (slots.length) {
+          if (i < 0) { state.responses.push({ name: session.name, slots }); state.filter.add(session.name); }
+          else state.responses[i].slots = slots;
+        } else if (i >= 0) state.responses.splice(i, 1);
+        const segBtn = document.querySelector('.seg button:last-child');
+        if (segBtn) segBtn.textContent = `Everyone (${state.responses.length})`;
+      }
+      setStatus('Saved ✓');
+    } catch (e) { setStatus('Not saved — ' + e.message, true); dirty = true; }
+  });
+  return saveChain;
+}
+window.addEventListener('pagehide', flushSave);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSave(); });
+
+async function confirmDelete() {
+  openModal(`<h3>Delete this event?</h3><div class="muted">Everyone's availability for “${esc(state.event.title)}” will be removed too.</div>
+    <div class="err" id="de"></div>
+    <div class="actions"><button class="btn" onclick="closeModal()">Keep it</button><button class="btn primary" style="background:var(--danger)" id="dy">Delete</button></div>`);
+  document.getElementById('dy').onclick = async () => {
+    try { await api('deleteEvent', { id: state.event.id }); dirty = false; state.event = null; closeModal(); location.hash = ''; showList(); }
+    catch (e) { document.getElementById('de').textContent = e.message; }
+  };
+}
+
+let lastMobile = isMobile();
+window.addEventListener('resize', () => {
+  if (isMobile() !== lastMobile) { lastMobile = isMobile(); if (state.event && document.getElementById('cal')) { renderPanel(); renderCalendar(); } }
+});
+
+/* =====================================================================
+   DEMO BACKEND — used only while API_URL is empty. Mirrors Code.gs.
+   ===================================================================== */
+const mockApi = (() => {
+  const members = [
+    { name: 'Mom', pin: '1234', admin: true }, { name: 'Dad', pin: '5678' },
+    { name: 'Grandma', pin: '1111' }, { name: 'Alex', pin: '2222' }, { name: 'Sam', pin: '3333' }
+  ];
+  const t = today();
+  const events = [
+    { id: 'd1', title: "Grandma's 80th birthday dinner", date: addDays(t, 18), notes: 'Looking for a night when everyone can make it. Somewhere with a big table!', createdBy: 'Mom' },
+    { id: 'd2', title: 'Family photo day', date: addDays(t, 40), notes: '', createdBy: 'Dad' },
+    { id: 'd3', title: 'Cabin weekend', date: addDays(t, 75), notes: 'Two nights at the lake.', createdBy: 'Mom' }
+  ];
+  const avail = {};
+  const seed = (id, name, fn) => {
+    const ev = events.find(e => e.id === id), s = [];
+    for (let d = addDays(ev.date, -WINDOW); d <= addDays(ev.date, WINDOW); d = addDays(d, 1)) {
+      const dow = parse(d).getDay();
+      SLOTS.forEach(sl => { if (fn(dow, sl.k, d)) s.push(`${d}|${sl.k}`); });
+    }
+    (avail[id] ||= {})[name] = s;
+  };
+  seed('d1', 'Dad', (dow, k) => k === 'E' || ((dow === 0 || dow === 6) && k !== 'M'));
+  seed('d1', 'Grandma', (dow, k) => k !== 'E' || dow === 5 || dow === 6);
+  seed('d1', 'Alex', (dow, k) => (dow >= 5 || dow === 0) && k !== 'M');
+  seed('d2', 'Sam', (dow, k) => dow === 6);
+  const err = (e, extra) => Object.assign({ ok: false, error: e }, extra);
+
+  return async req => {
+    await new Promise(r => setTimeout(r, 150));
+    if (req.action === 'members') return { ok: true, members: members.map(m => m.name) };
+    const u = members.find(m => m.name === req.name && m.pin === req.pin);
+    if (!u) return err('Name or last 4 digits not recognized.', { auth: false });
+    const resp = id => Object.entries(avail[id] || {}).filter(([, s]) => s.length).map(([name, slots]) => ({ name, slots }));
+    switch (req.action) {
+      case 'login': return { ok: true, user: { name: u.name, admin: !!u.admin } };
+      case 'events': return { ok: true, events: events.filter(e => addDays(e.date, WINDOW) >= today()).sort((a, b) => a.date < b.date ? -1 : 1).map(e => ({ ...e, responders: resp(e.id).map(r => r.name) })) };
+      case 'event': { const e = events.find(x => x.id === req.id); return e ? { ok: true, event: e, responses: resp(e.id) } : err('That event no longer exists.'); }
+      case 'addEvent': {
+        if (!req.title?.trim()) return err('Please give the event a name.');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(req.date || '')) return err('Please pick a date.');
+        const e = { id: 'd' + Date.now(), title: req.title.trim(), date: req.date, notes: req.notes || '', createdBy: u.name };
+        events.push(e); return { ok: true, event: { ...e, responders: [] } };
+      }
+      case 'saveAvail': (avail[req.id] ||= {})[u.name] = req.slots; return { ok: true };
+      case 'deleteEvent': { const i = events.findIndex(e => e.id === req.id); if (i < 0) return err('Not found');
+        if (!u.admin && events[i].createdBy !== u.name) return err('Only the person who created this event (or an admin) can delete it.');
+        events.splice(i, 1); delete avail[req.id]; return { ok: true }; }
+    }
+    return err('Unknown action');
+  };
+})();
+
+route();
+</script>
+</body>
+</html>

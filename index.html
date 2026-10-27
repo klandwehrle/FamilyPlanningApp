@@ -165,6 +165,18 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 .steps{margin:12px 0 18px;padding-left:22px}
 .steps li{margin:6px 0}
 .ok{color:var(--good);font-weight:650}
+
+/* sign-in screen: add-to-phone help */
+.ih{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;font-size:14px}
+.ih summary{cursor:pointer;font-weight:650;list-style:none;display:flex;justify-content:space-between;align-items:center}
+.ih summary::-webkit-details-marker{display:none}
+.ih summary::after{content:'▾';color:var(--muted);transition:transform .15s}
+.ih[open] summary::after{transform:rotate(180deg)}
+.ih-tabs{display:flex;background:var(--slot-empty);border-radius:10px;padding:3px;margin:12px 0 4px}
+.ih-tabs button{flex:1;border:0;background:none;padding:7px;border-radius:8px;font-weight:600;cursor:pointer;color:var(--muted);font-size:14px}
+.ih-tabs button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+.ih .steps{margin:10px 0 10px}
+.ih-done{color:var(--good)}
 </style>
 </head>
 <body>
@@ -265,7 +277,14 @@ async function showLogin() {
       <input id="lp" class="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" required>
       <div class="err" id="le"></div>
       <button class="btn primary" style="width:100%;padding:14px;margin-top:6px" id="lb">Sign in</button>
-    </form></div></div>`;
+    </form>
+    ${installHelpHtml()}
+    </div></div>`;
+  const help = document.getElementById('installHelp');
+  if (help) help.querySelectorAll('.ih-tabs button').forEach(b => b.onclick = () => {
+    help.querySelectorAll('.ih-tabs button').forEach(x => x.classList.toggle('on', x === b));
+    help.querySelectorAll('.ih-pane').forEach(p => p.hidden = p.dataset.os !== b.dataset.os);
+  });
   const sel = document.getElementById('ln'), err = document.getElementById('le');
   try {
     const { members } = await api('members');
@@ -302,6 +321,37 @@ async function showLogin() {
   pinBox.addEventListener('input', tryAuto);
   sel.addEventListener('change', () => { if (pinBox.value.length === 4) tryAuto(); else pinBox.focus(); });
 }
+/* "Add to your phone" instructions on the sign-in screen */
+function installHelpHtml() {
+  const bell = PUSH_ON
+    ? `<li>Tap the <b>🔔</b> at the top, then <b>Turn on</b> → <b>Allow</b> to get notifications</li>` : '';
+  if (isStandalone()) {
+    return PUSH_ON ? `<div class="ih ih-done">✓ You’re using the home-screen app. After signing in, tap <b>🔔</b> to turn on notifications.</div>` : '';
+  }
+  const android = /Android/i.test(navigator.userAgent);
+  const tab = os => (isIOS() && os === 'ios') || (android && os === 'android') || (!isIOS() && !android && os === 'ios') ? 'on' : '';
+  const hidden = os => tab(os) ? '' : 'hidden';
+  return `<details class="ih" id="installHelp" ${isIOS() || android ? 'open' : ''}>
+    <summary>📱 Add this app to your phone${PUSH_ON ? ' & get notifications' : ''}</summary>
+    <div class="ih-tabs"><button type="button" data-os="ios" class="${tab('ios')}">iPhone</button><button type="button" data-os="android" class="${tab('android')}">Android</button></div>
+    <ol class="steps ih-pane" data-os="ios" ${hidden('ios')}>
+      <li>Open this page in <b>Safari</b></li>
+      <li>Tap the <b>Share</b> button <span aria-hidden="true">⬆︎</span> at the bottom of the screen</li>
+      <li>Scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b></li>
+      <li>Close Safari and open <b>Family Cal</b> from your home screen</li>
+      <li>Sign in with your name and last 4 digits</li>${bell}
+    </ol>
+    <ol class="steps ih-pane" data-os="android" ${hidden('android')}>
+      <li>Open this page in <b>Chrome</b></li>
+      <li>Tap the <b>⋮</b> menu in the top-right corner</li>
+      <li>Tap <b>Add to Home screen</b> (or <b>Install app</b>), then <b>Install</b></li>
+      <li>Open <b>Family Cal</b> from your home screen</li>
+      <li>Sign in with your name and last 4 digits</li>${bell}
+    </ol>
+    ${PUSH_ON ? `<div class="muted small">iPhone notifications need iOS 16.4 or newer and only work from the home-screen app.</div>` : ''}
+  </details>`;
+}
+
 function logout() { pushLogout(); session = null; store.del('famcal_session'); location.hash = ''; showLogin(); }
 
 /* ---------- event list ---------- */
